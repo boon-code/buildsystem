@@ -1,4 +1,6 @@
+import sys
 import os
+import re
 import logging
 
 import bssettings
@@ -40,102 +42,49 @@ class ModuleNameAlreadyUsedError(ConfigException):
 class OnlyOneModuleInDirectoryError(ConfigException):
     pass
 
-class BoyngHelper(object):
-    
-    def __init__(self, config, module_name):
-        self._config = config
-        self._mod_name = module_name
-    
-    def input(self, name):
-        cfg_name = "%s_%s" % (self._mod_name, 
-            str(name).strip(' ').upper())
-        
-        if not self._config.has_key(cfg_name):
-            print "value for %s (%s) is: " % (name, cfg_name)
-            value = shell_escape(raw_input())
-            self._config[cfg_name] = value
-        return self._config[cfg_name]
 
-
-def eval_config(directory, options, err=sys.stderr):
+class UserConfig(object):
     
-    pickle_path = os.path.join(directory, CFG_USERFILE)
-    module_name = None
-    file_path = ""
-    config = {}
+    def __init__(self, curr_mod, mods_to_load, configer):
+        
+        self._mods = mods_to_load
+        self._mod = curr_mod
+        self._cfg = configer
     
-    for i in os.listdir(directory):
-        cfg_match = CFG_FILE.match(i)
-        if not (cfg_match is None):
-            if module_name is None:
-                module_name = cfg_match.group(1)
-                file_path = os.path.join(directory, i)
-            else:
-                sys.stderr.write("only 1 configure-skript per" + 
-                    " directory is allowed\n")
-                sys.stderr.flush()
-                sys.exit(1)
-    
-    if not (module_name is None):
-        module_name = module_name.strip(' ').upper()
+    def 
         
-        if os.path.exists(pickle_path) and (not options.reconfigure):
-            f = open(pickle_path, 'r')
-            try:
-                pick = cPickle.Unpickler(f)
-                config = pick.load()
-            finally:
-                f.close()
-        
-        env = {'__builtins__' : __builtins__,
-            'BOYNG_VERSION' : VERSION,
-            'cfg' : BoyngHelper(config, module_name)}
-        
-        execfile(file_path, env, env)
-        
-        #config['module'] = module_name
-        
-        f = open(pickle_path, 'w')
-        try:
-            pick = cPickle.Pickler(f, 0)
-            pick.dump(config)
-        finally:
-            f.close()
-    else:
-        if options.verbose:
-            err.write("no configure skript found (%s)\n" % directory)
-            err.flush()
-
-
-def do_config(basedir, options):
-    
-    eval_config(basedir, options)
-    
-    for i in os.listdir(basedir):
-        curr_dir = os.path.join(basedir, i)
-        if os.path.isdir(curr_dir):
-            do_config(curr_dir, options)
 
 class ModuleNode(object):
     
     def __init__(self, name, path):
         self._name = name
         self._path = path
-        self._full = os.path.join(path, CFG_SCRIPTFILE % name)
+        self._full = os.path.join(path, 
+                bssettings.CFG_SCRIPTFILE % name)
+    
+    def get_name(self):
+        return self._name
+    
+    def get_path(self):
+        return self._path
+    
+    def get_script_path(self):
+        return self._full
 
 
 class Configer(object):
     
-    def __init__(self, dirs, options):
+    def __init__(self, dirs, verbose=False):
         
         self._dirs = dirs
         self._log = logging.getLogger(LOGGER_NAME)
         self._mods = {}
+        self._mods_exec_list = []
         
-        if options.verbose:
+        if verbose:
             self._log.setLevel(logging.DEBUG)
         
-        if len(dirs) <= 0:
+        if len(self._dirs) <= 0:
             self._log.warning("no directories given!")
             raise NoDirectoryToConfigError()
         else:
@@ -166,7 +115,7 @@ class Configer(object):
                 is_a_dir = os.path.isdir(fullpath)
                 sf_match = bssettings.CFG_SCRIPTFILE_RE.match(i)
                 
-                if (not (sf_match is None) and (not is_a_dir):
+                if (not (sf_match is None)) and (not is_a_dir):
                     if found:
                         self._log.critical("only one configure-script" + 
                             " per directory is allowed (%s)" % directory)
@@ -175,12 +124,44 @@ class Configer(object):
                         self._add_module(sf_match.group(1), directory)
                         found = True
                 elif is_a_dir:
-                    self._load_modules_in_directory(self, fullpath)
+                    self._load_modules_in_directory(fullpath)
     
     def _find_modules(self):
         
-        for i in dirs:
+        for i in self._dirs:
             self._load_modules_in_directory(os.path.realpath(i))
+    
+    
+    def _real_exec_module(self, module):
+        
+    
+    def exec_module(self, name):
+        
+    
+    
+    def _exec_modules(self):
+        
+        self._mods_exec_list = self._mods.values()
+        
+        while True:
+            try:
+                curr_mod = self._mods_exec_list.pop()
+            except IndexError:
+                return
+            
+            
+            self._log.debug("exec module %s" % curr_mod.get_name())
+            script_path = curr_mod.get_script_path()
+            
+            
+            
+            
+            
+    
+    def show_modules(self):
+        
+        for (k,v) in self._mods.iteritems():
+            print k,v.get_path()
 
 
 def main(args):
@@ -198,4 +179,4 @@ def main(args):
     
     options, args = parser.parse_args(args)
     
-    cfg_obj = Configer(args, options)
+    cfg_obj = Configer(args, verbose=options.verbose)
