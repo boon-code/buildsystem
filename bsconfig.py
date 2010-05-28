@@ -1,8 +1,12 @@
 import sys
 import os
 import re
+import shlex
+import copy
 import logging
+import optparse
 
+import bsmodule
 import bssettings
 
 LOGGER_NAME = 'config'
@@ -39,6 +43,7 @@ class NoDirectoryToConfigError(ConfigException):
 class ModuleNameAlreadyUsedError(ConfigException):
     pass
 
+
 class OnlyOneModuleInDirectoryError(ConfigException):
     pass
 
@@ -50,26 +55,6 @@ class UserConfig(object):
         self._mods = mods_to_load
         self._mod = curr_mod
         self._cfg = configer
-    
-    def 
-        
-
-class ModuleNode(object):
-    
-    def __init__(self, name, path):
-        self._name = name
-        self._path = path
-        self._full = os.path.join(path, 
-                bssettings.CFG_SCRIPTFILE % name)
-    
-    def get_name(self):
-        return self._name
-    
-    def get_path(self):
-        return self._path
-    
-    def get_script_path(self):
-        return self._full
 
 
 class Configer(object):
@@ -79,7 +64,6 @@ class Configer(object):
         self._dirs = dirs
         self._log = logging.getLogger(LOGGER_NAME)
         self._mods = {}
-        self._mods_exec_list = []
         
         if verbose:
             self._log.setLevel(logging.DEBUG)
@@ -89,21 +73,24 @@ class Configer(object):
             raise NoDirectoryToConfigError()
         else:
             self._find_modules()
+            self._load_module_extensions()
     
     def _add_module(self, name, path):
         
         path = os.path.realpath(path)
+        unique_name = name.upper()
         
-        if name in self._mods:
-            if self._mods[name].get_path() != path:
+        if unique_name in self._mods:
+            if self._mods[unique_name].get_path() != path:
                 self._log.critical("i have already found a module" + 
-                    " with name '%s'" % name)
+                    " with name '%s'" % unique_name)
                 raise ModuleNameAlreadyUsedError()
             else:
-                self._log.info("already listed this module: %s" % name)
+                self._log.info("already listed this module: %s"
+                     % unique_name)
         else:
-            self._mods[name] = ModuleNode(name, path)
-            self._log.debug("added module %s (%s)" % (name, path))
+            self._mods[unique_name] = bsmodule.ModuleNode(name, path)
+            self._log.debug("added module %s (%s)" % (unique_name, path))
     
     def _load_modules_in_directory(self, directory):
         
@@ -131,37 +118,66 @@ class Configer(object):
         for i in self._dirs:
             self._load_modules_in_directory(os.path.realpath(i))
     
-    
-    def _real_exec_module(self, module):
+    def _parse_extcmd(self, cmd_line, module):
         
-    
-    def exec_module(self, name):
+        args = shlex.split(cmd_line)
         
+        if len(args) > 0:
+            if args[0] in ('input', 'in'):
+                for i in args[1:]:
+                    uname = i.upper()
+                    if self._mods.has_key(uname):
+                        self._log.debug("add module %s" % i)
+                        module.add_input(self._mods[uname])
+                    else:
+                        self._log.warning("couldn't find module %s" % i)
+            elif args[0] in ('output', 'out'):
+                for i in args[1:]:
+                    uname = i.upper()
+                    if self._mods.has_key(uname):
+                        self._log.debug("add output module %s" % i)
+                        module.add_output(self._mods[uname])
+                    else:
+                        self._log.warning("couldn't find module %s" % i)
     
+    def _load_module_extensions(self):
+        
+        for curr_mod in self._mods.values():
+            
+            self._log.debug("try load module extension (module %s)"
+                % curr_mod.get_name())
+            script_path = curr_mod.get_script_path()
+            f = open(script_path, 'r')
+            try:
+                for line in f:
+                    ext_match = bssettings.CFG_EXTENSION_RE.match(line)
+                    if not (ext_match is None):
+                        cmd = ext_match.group(1)
+                        self._log.debug("extension command: '%s'" % cmd)
+                        self._parse_extcmd(cmd, curr_mod)
+            finally:
+                f.close()
     
-    def _exec_modules(self):
+    def exec_modules(self, reconfigure=False):
         
-        self._mods_exec_list = self._mods.values()
-        
+        mods = self._mods.values()
         while True:
             try:
-                curr_mod = self._mods_exec_list.pop()
+                curr_mod = mods.pop()
             except IndexError:
                 return
             
-            
-            self._log.debug("exec module %s" % curr_mod.get_name())
-            script_path = curr_mod.get_script_path()
-            
-            
-            
-            
-            
+            curr_mod.eval_config(mods, reconfigure=reconfigure)
     
     def show_modules(self):
         
         for (k,v) in self._mods.iteritems():
-            print k,v.get_path()
+            print k
+            l = v.infolist()
+            print "  name:", l['name']
+            print "  script:", l['scriptfile']
+            print "  inputs:", l['in']
+            print "  outputs:", l['out']
 
 
 def main(args):
@@ -175,8 +191,14 @@ def main(args):
     parser.add_option("-v", "--verbose", action="store_true",
         help="turns on warnings (to stderr)...")
     
+    parser.add_option("-s", "--show", action="store_true",
+        help="shows modules")
+    
     parser.set_defaults(verbose=False, reconfigure=False)
     
     options, args = parser.parse_args(args)
     
-    cfg_obj = Configer(args, verbose=options.verbose)
+    cfg_obj = Configer(args[1:], verbose=options.verbose)
+    
+    if options.show:
+        cfg_obj.show_modules()
