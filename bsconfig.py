@@ -48,16 +48,7 @@ class OnlyOneModuleInDirectoryError(ConfigException):
     pass
 
 
-class UserConfig(object):
-    
-    def __init__(self, curr_mod, mods_to_load, configer):
-        
-        self._mods = mods_to_load
-        self._mod = curr_mod
-        self._cfg = configer
-
-
-class Configer(object):
+class ConfigManager(object):
     
     def __init__(self, dirs, verbose=False):
         
@@ -72,8 +63,8 @@ class Configer(object):
             self._log.warning("no directories given!")
             raise NoDirectoryToConfigError()
         else:
-            self._find_modules()
-            self._load_module_extensions()
+            self.find_modules()
+            self.load_module_extensions()
     
     def _add_module(self, name, path):
         
@@ -113,7 +104,7 @@ class Configer(object):
                 elif is_a_dir:
                     self._load_modules_in_directory(fullpath)
     
-    def _find_modules(self):
+    def find_modules(self):
         
         for i in self._dirs:
             self._load_modules_in_directory(os.path.realpath(i))
@@ -137,10 +128,11 @@ class Configer(object):
                     if self._mods.has_key(uname):
                         self._log.debug("add output module %s" % i)
                         module.add_output(self._mods[uname])
+                        self._mods[uname].add_cmaster(module)
                     else:
                         self._log.warning("couldn't find module %s" % i)
     
-    def _load_module_extensions(self):
+    def load_module_extensions(self):
         
         for curr_mod in self._mods.values():
             
@@ -198,7 +190,7 @@ def main(args):
     
     options, args = parser.parse_args(args)
     
-    cfg_obj = Configer(args[1:], verbose=options.verbose)
+    cfg_obj = ConfigManager(args[1:], verbose=options.verbose)
     
     if options.show:
         cfg_obj.show_modules()

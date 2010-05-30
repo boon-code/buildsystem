@@ -35,6 +35,10 @@ class InOutNotAllowedError(ModuleException):
     pass
 
 
+class CyclingOutputError(ModuleException):
+    pass
+
+
 class ModuleNode(object):
     
     def __init__(self, name, path):
@@ -45,6 +49,7 @@ class ModuleNode(object):
                 bssettings.CFG_SCRIPTFILE % name)
         self._in = []
         self._out = []
+        self._master = []
     
     def get_name(self):
         return self._uname
@@ -62,8 +67,8 @@ class ModuleNode(object):
                 % (module.get_name(), self._uname))
             raise InOutNotAllowedError()
         elif module in self._in:
-            self._log.debug("already added module %s as input"
-                % module.get_name())
+            self._log.debug("%s: already added module %s as input"
+                % (self._uname, module.get_name()))
         else:
             self._in.append(module)
     
@@ -74,36 +79,58 @@ class ModuleNode(object):
                 % (module.get_name(), self._name))
             raise InOutNotAllowedError()
         elif module in self._out:
-            self._log.debug("already added module %s as output"
-                % module.get_name())
+            self._log.debug("%s: already added module %s as output"
+                % (self._uname, module.get_name()))
         else:
             self._out.append(module)
     
-    def eval_config(self, mods, reconfigure=False):
+    def add_cmaster(self, module):
         
-        pickle_path = os.path.join(self._path, CFG_USERFILE)
-        config = {}
+        if module in self._out:
+            self._log.critical("%s can't configure it's master %s"
+                % (self._uname, module.get_name()))
+            raise CyclingOutputError()
+        elif module in self._master:
+            self._log.debug("%s: already added module %s as master"
+                % (self._uname, module.get_name()))
+        else:
+            self._master.append(module)
+    
+    def eval_config(self, user_class, mods_to_exec, reconfig):
         
-        if os.path.exists(pickle_path) and (not options.reconfigure):
-            f = open(pickle_path, 'r')
+        usr_path = os.path.join(self._path, bssettings.CFG_USERFILE)
+        cache_path = os.path.join(self._path, bssettings.CFG_CACHEFILE)
+        
+        if os.path.exists(usr_path) and (not (self._uname in reconfig)):
+            f = open(usr_path, 'r')
             try:
                 pick = cPickle.Unpickler(f)
                 config = pick.load()
             finally:
                 f.close()
         
+        for reqi in self._in:
+            if reqi in mods_to_exec:
+                mods_to_exec.remove(reqi)
+                reqi.eval_config(mods_to_exec, reconfig)
+        
+        for cmi in self._master:
+            if cmi in mods_to_exec:
+                mods_to_exec.remove(cmi)
+                cmi.eval_config(mods_to_exec, reconfig)
+        
+        usercfg = user_class()
+        
         env = {'__builtins__' : __builtins__,
-            'BOYNG_VERSION' : VERSION,
-            'cfg' : BoyngHelper(config, module_name)}
+            'BS_VERSION' : bssettings.VERSION,
+            'cfg' : usercfg}
         
-        execfile(file_path, env, env)
+        execfile(self._full, env, {})
         
-        #config['module'] = module_name
-        
-        f = open(pickle_path, 'w')
+        f = open(usr_path, 'w')
         try:
             pick = cPickle.Pickler(f, 0)
-            pick.dump(config)
+            pick.dump(usercfg.clone_usr_cfg())
         finally:
             f.close()
     
