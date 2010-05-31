@@ -63,9 +63,6 @@ class ConfigManager(object):
         if len(self._dirs) <= 0:
             self._log.warning("no directories given!")
             raise NoDirectoryToConfigError()
-        else:
-            self.find_modules()
-            self.load_module_extensions()
     
     def _add_module(self, name, path):
         
@@ -151,9 +148,14 @@ class ConfigManager(object):
             finally:
                 f.close()
     
-    def exec_modules(self):
+    def exec_modules(self, reconfig_modules={}, reconfig_all=False):
         
         mods = self._mods.values()
+        if reconfig_all:
+            reconfig = [i.get_name() for i in mods]
+        else:
+            reconfig = [i.upper() for i in reconfig_modules]
+        
         while True:
             try:
                 curr_mod = mods.pop()
@@ -162,7 +164,7 @@ class ConfigManager(object):
             
             # still need the reconfigure thing..
             
-            curr_mod.eval_config(bscuser.UserConfig, mods, {})
+            curr_mod.eval_config(bscuser.UserConfig, mods, reconfig)
     
     def show_modules(self):
         
@@ -183,19 +185,27 @@ def main(args):
     parser.add_option("-r", "--reconfigure", action="store_true",
         help="deletes old userconfig and reconfigures source code")
     
+    parser.add_option("-c", "--change", action="append",
+        help="changes given modules")
+    
     parser.add_option("-v", "--verbose", action="store_true",
         help="turns on warnings (to stderr)...")
     
     parser.add_option("-s", "--show", action="store_true",
         help="shows modules")
     
-    parser.set_defaults(verbose=False, reconfigure=False)
+    parser.set_defaults(verbose=False, reconfigure=False, change=[],
+        show=False)
     
     options, args = parser.parse_args(args)
     
     cfg_obj = ConfigManager(args[1:], verbose=options.verbose)
     
+    cfg_obj.find_modules()
+    cfg_obj.load_module_extensions()
+    
     if options.show:
         cfg_obj.show_modules()
     else:
-        cfg_obj.exec_modules()
+        cfg_obj.exec_modules(reconfig_modules=options.change,
+            reconfig_all=options.reconfigure)

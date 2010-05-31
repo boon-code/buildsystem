@@ -215,7 +215,6 @@ class ModuleNode(object):
             cfg = i.get_usr_cfg()
             ccfg.update(cfg)
         
-        
         return ccfg
     
     def _save_config(self, cache):
