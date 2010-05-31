@@ -7,6 +7,7 @@ import logging
 import optparse
 
 import bsmodule
+import bscuser
 import bssettings
 
 LOGGER_NAME = 'config'
@@ -150,7 +151,7 @@ class ConfigManager(object):
             finally:
                 f.close()
     
-    def exec_modules(self, reconfigure=False):
+    def exec_modules(self):
         
         mods = self._mods.values()
         while True:
@@ -159,7 +160,9 @@ class ConfigManager(object):
             except IndexError:
                 return
             
-            curr_mod.eval_config(mods, reconfigure=reconfigure)
+            # still need the reconfigure thing..
+            
+            curr_mod.eval_config(bscuser.UserConfig, mods, {})
     
     def show_modules(self):
         
@@ -194,3 +197,5 @@ def main(args):
     
     if options.show:
         cfg_obj.show_modules()
+    else:
+        cfg_obj.exec_modules()

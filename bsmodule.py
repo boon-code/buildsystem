@@ -1,3 +1,4 @@
+import sys
 import os
 import copy
 import logging
@@ -39,6 +40,18 @@ class CyclingOutputError(ModuleException):
     pass
 
 
+class DepencyError(ModuleException):
+    pass
+
+
+class SoftDepencyError(DepencyError):
+    pass
+
+
+class ConflictingOrdersError(DepencyError):
+    pass
+
+
 class ModuleNode(object):
     
     def __init__(self, name, path):
@@ -50,6 +63,9 @@ class ModuleNode(object):
         self._in = []
         self._out = []
         self._master = []
+        self._usr_config = {}
+        self._orders = {}
+        self._execuded = False
     
     def get_name(self):
         return self._uname
@@ -59,6 +75,9 @@ class ModuleNode(object):
     
     def get_script_path(self):
         return self._full
+    
+    def is_execuded(self):
+        return self._execuded
     
     def add_input(self, module):
         
@@ -96,30 +115,134 @@ class ModuleNode(object):
         else:
             self._master.append(module)
     
-    def eval_config(self, user_class, mods_to_exec, reconfig):
+    def check_depencies(self, usr_class, mods_to_exec, reconfig):
         
-        usr_path = os.path.join(self._path, bssettings.CFG_USERFILE)
-        cache_path = os.path.join(self._path, bssettings.CFG_CACHEFILE)
+        for i in self._in:
+            if i in mods_to_exec:
+                mods_to_exec.remove(i)
+                i.eval_config(usr_class, mods_to_exec, reconfig)
         
-        if os.path.exists(usr_path) and (not (self._uname in reconfig)):
-            f = open(usr_path, 'r')
+        for i in self._master:
+            if i in mods_to_exec:
+                mods_to_exec.remove(i)
+                i.eval_config(usr_class, mods_to_exec, reconfig)
+        
+        self._log.debug("now checking depencies for module %s"
+            % self._uname)
+        
+        for i in self._in:
+            if not i.is_execuded():
+                self._log.critical("dep. error in module %s (input %s)"
+                    % (self._uname, i.get_name()))
+                raise DepencyError()
+        
+        for i in self._master:
+            if not i.is_execuded():
+                self._log.warning("%s: master %s not execuded"
+                    % (self._uname, i.get_name()))
+                raise SoftDepencyError()
+        
+        self._log.debug("depency checked for module %s" % self._uname)
+    
+    def get_usr_cfg(self):
+        return copy.deepcopy(self._usr_config)
+    
+    def get_cfg(self, name):
+        
+        cfg_name = "%s_%s" % (self._uname, name)
+        
+        if cfg_name in self._usr_config:
+            return self._usr_config[cfg_name]
+        else:
+            return None
+    
+    def add_cfg(self, name, value, overwrite=False):
+        
+        cfg_name = "%s_%s" % (self._uname, name)
+        
+        if (not (cfg_name in self._usr_config)) or overwrite:
+            self._usr_config[cfg_name] = value
+            return True
+        else:
+            return False
+    
+    def submit_order(self, modname, name, value, overwrite):
+        
+        modname = modname.upper()
+        for i in self._out:
+            if modname == i.get_name():
+                i._add_order(self, name, value, overwrite)
+                return True
+        
+        return False
+    
+    def _exec_orders(self):
+        
+        for (name, order) in self._orders.iteritems():
+            self.add_cfg(name, value, overwrite=True)
+    
+    def _add_order(self, module, name, value, overwrite):
+        
+        if self._orders.has_key(name):
+            order = self._orders[name]
+            if order[1] == module:
+                if overwrite:
+                    self._orders[name] = [value, module]
+                    return True
+                else:
+                    return False
+            else:
+                self._log.critical("can't overwrite %s" % name)
+                raise ConflictingOrdersError()
+        else:
+            self._orders[name] = [value, module]
+    
+    def _load_config(self, reconfigure=False):
+        
+        usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
+        cache_file = os.path.join(self._path, bssettings.CFG_CACHEFILE)
+        ccfg = {}
+        
+        if os.path.exists(usr_file) and (not reconfigure):
+            f = open(usr_file, 'r')
             try:
                 pick = cPickle.Unpickler(f)
-                config = pick.load()
+                self._usr_config = pick.load()
             finally:
                 f.close()
         
-        for reqi in self._in:
-            if reqi in mods_to_exec:
-                mods_to_exec.remove(reqi)
-                reqi.eval_config(mods_to_exec, reconfig)
+        for i in self._in:
+            cfg = i.get_usr_cfg()
+            ccfg.update(cfg)
         
-        for cmi in self._master:
-            if cmi in mods_to_exec:
-                mods_to_exec.remove(cmi)
-                cmi.eval_config(mods_to_exec, reconfig)
         
-        usercfg = user_class()
+        return ccfg
+    
+    def _save_config(self, cache):
+        
+        usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
+        cache_file = os.path.join(self._path, bssettings.CFG_CACHEFILE)
+        
+        f = open(usr_file, 'w')
+        try:
+            pick = cPickle.Pickler(f)
+            pick.dump(self._usr_config)
+        finally:
+            f.close()
+        
+        f = open(cache_file, 'w')
+        try:
+            pick = cPickle.Pickler(f)
+            pick.dump(cache)
+        finally:
+            f.close()
+    
+    def eval_config(self, usr_class, mods_to_exec, reconfig):
+        
+        self.check_depencies(usr_class, mods_to_exec, reconfig)
+        ccfg = self._load_config(reconfigure=(self._uname in reconfig))
+        self._exec_orders()
+        usercfg = usr_class(self, ccfg)
         
         env = {'__builtins__' : __builtins__,
             'BS_VERSION' : bssettings.VERSION,
@@ -127,12 +250,8 @@ class ModuleNode(object):
         
         execfile(self._full, env, {})
         
-        f = open(usr_path, 'w')
-        try:
-            pick = cPickle.Pickler(f, 0)
-            pick.dump(usercfg.clone_usr_cfg())
-        finally:
-            f.close()
+        self._save_config(ccfg)
+        self._execuded = True
     
     def infolist(self):
         
