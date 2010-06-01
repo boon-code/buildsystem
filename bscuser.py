@@ -20,10 +20,10 @@ class MissingEntryError(UserConfigException):
 
 class UserConfig(object):
     
-    def __init__(self, module, cache, overwrite=False):
+    def __init__(self, module, cache, reconfigure=False):
         self._mod = module
         self._ccfg = cache
-        self._overwrite = overwrite
+        self._reconfig = reconfigure
 
     def input(self, name):
         
@@ -33,7 +33,7 @@ class UserConfig(object):
             print "value for %s is: " % name
             value = shell_escape(raw_input())
             self._mod.add_cfg(name, value)
-        elif self._overwrite:
+        elif self._reconfig:
             try:
                 print ("value for %s was %s... enter new value or Ctrl+D to exit" %
                     (name, str(old)))
@@ -54,6 +54,10 @@ class UserConfig(object):
             raise MissingEntryError()
         else:
             return value
+    
+    def write(self, name, value):
+        
+        self._mod.add_cfg(name, value, True)
     
     def inread(self, name):
         

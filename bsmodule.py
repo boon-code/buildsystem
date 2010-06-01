@@ -179,7 +179,7 @@ class ModuleNode(object):
     def _exec_orders(self):
         
         for (name, order) in self._orders.iteritems():
-            self.add_cfg(name, value, overwrite=True)
+            self.add_cfg(name, order[0], overwrite=True)
     
     def _add_order(self, module, name, value, overwrite):
         
@@ -197,13 +197,13 @@ class ModuleNode(object):
         else:
             self._orders[name] = [value, module]
     
-    def _load_config(self, reconfigure=False):
+    def _load_config(self):
         
         usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
         cache_file = os.path.join(self._path, bssettings.CFG_CACHEFILE)
         ccfg = {}
         
-        if os.path.exists(usr_file) and (not reconfigure):
+        if os.path.exists(usr_file):
             f = open(usr_file, 'r')
             try:
                 pick = cPickle.Unpickler(f)
@@ -238,10 +238,11 @@ class ModuleNode(object):
     
     def eval_config(self, usr_class, mods_to_exec, reconfig):
         
+        reconfigure = (self._uname in reconfig)
         self.check_depencies(usr_class, mods_to_exec, reconfig)
-        ccfg = self._load_config(reconfigure=(self._uname in reconfig))
+        ccfg = self._load_config()
         self._exec_orders()
-        usercfg = usr_class(self, ccfg)
+        usercfg = usr_class(self, ccfg, reconfigure=reconfigure)
         
         env = {'__builtins__' : __builtins__,
             'BS_VERSION' : bssettings.VERSION,
