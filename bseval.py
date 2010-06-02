@@ -97,7 +97,7 @@ def parse_data(data, dst, env):
         dst.write(data)
         dst.flush()
 
-def eval_main(args):
+def main(args):
     
     parser = optparse.OptionParser(
         usage="usage: %prog eval [options] file [other files]")
