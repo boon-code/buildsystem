@@ -9,10 +9,6 @@ class CollectException(Exception):
     pass
 
 
-class MissingConfigFilesError(CollectException):
-    pass
-
-
 class NoBasicTypeException(CollectException):
     pass
 
@@ -25,7 +21,8 @@ def collect_defines(directory):
     
     if ((not os.path.isfile(cache_file))
             or (not os.path.isfile(usr_file))):
-        raise MissingConfigFilesError()
+        # error msg please
+        return config
     else:
         f = open(cache_file, 'r')
         try:
