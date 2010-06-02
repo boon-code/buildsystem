@@ -2,6 +2,7 @@ import sys
 import os
 import optparse
 import bssettings
+import bsdef
 
 def cpp_escape(value):
     value = value.replace('\\', '\\\\')
