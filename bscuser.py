@@ -42,6 +42,29 @@ class UserConfig(object):
             except EOFError:
                 print "keep old value!"
     
+    def _print_list(self, name, darray):
+        
+        try:
+            for (i,v) in enumerate(darray):
+                print "%d %s" % (i, v)
+            print "choose from list:"
+            number = raw_input()
+            self._mod.add_cfg(name, value)
+        except IndexError:
+            return self._print_list(darray)
+    
+    def choose(self, name, darray):
+        
+        old = self._mod.get_cfg(name)
+        
+        if old is None:
+            self._print_list(name, darray)
+        elif self._reconfig:
+            try:
+                self._print_list(name, darray)
+            except EOFError:
+                print "keep old value"
+    
     def sub_write(self, modname, name, value):
         
         # overwrite True enables a module to overwrite it's settings
