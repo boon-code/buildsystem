@@ -224,8 +224,7 @@ class ModuleNode(object):
         
         f = open(usr_file, 'w')
         try:
-            pick = cPickle.Pickler(f)
-            pick.dump(self._usr_config)
+            <
         finally:
             f.close()
         
