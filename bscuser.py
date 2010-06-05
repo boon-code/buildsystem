@@ -47,11 +47,11 @@ class UserConfig(object):
         try:
             for (i,v) in enumerate(darray):
                 print "%d %s" % (i, v)
-            print "choose from list:"
+            print "choose var '%s' from list:" % name
             number = raw_input()
-            self._mod.add_cfg(name, value)
-        except IndexError:
-            return self._print_list(darray)
+            self._mod.add_cfg(name, darray[int(number)])
+        except (IndexError, ValueError):
+            return self._print_list(name, darray)
     
     def choose(self, name, darray):
         
