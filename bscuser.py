@@ -22,11 +22,13 @@ class SkipException(UserConfigException):
     pass
 
 
-class UserExprInput(object):
+class UnimplementedException(UserConfigException):
+    pass
+
+
+class BasicInput(object):
     
-    def __init__(self, name, value, help=None,
-            question="Enter Expression for %(name)s",
-            old_text="To Keep old value '%(old)s' press Ctrl+D"):
+    def __init__(self, name, value, question, old_text, help=None):
         
         self._dict = {'name' : name, 'old' : value, 'value' : None}
         self._quest = question % self._dict
@@ -37,15 +39,34 @@ class UserExprInput(object):
             self._help = None
     
     def _real_ask(self, reconfigure):
+        raise UnimplementedException()
+    
+    def _ask(self, reconfigure=False):
+        
+        if self._dict['old'] is None:
+            return self._real_ask(reconfigure)
+        elif reconfigure:
+            return self._real_ask(True)
+        else:
+            return value
+
+
+class UserExprInput(BasicInput):
+    
+    def __init__(self, name, value, help=None,
+            question="Enter Expression for %(name)s",
+            old_text="To Keep old value '%(old)s' press Ctrl+D"):
+        
+        BasicInput.__init__(self, name, value, question, old_text,
+            help=help)
+    
+    def _real_ask(self, reconfigure):
         
         print self._quest
-        
         if reconfigure:
             print self._old
-        
         if self._help:
             print self._help
-        
         try:
             self._dict['value'] = shell_escape(raw_input())
             print "configuring: %(name)s = %(value)s" % self._dict
@@ -55,9 +76,69 @@ class UserExprInput(object):
                 print "keep old value: %(name)s = %(value)s" % self._dict
             else:
                 raise SkipException()
+        return self._dict['value']
+
+
+class UserTextInput(BasicInput):
     
-    def _ask(self, reconfigure=False):
+    def __init__(self, name, value, help=None,
+            question="Enter String for %(name)s",
+            old_text="To Keep old value '%(old)s' press Ctrl+D"):
         
+        BasicInput.__init__(self, name, value, question, old_text,
+            help=help)
+    
+    def _real_ask(self, reconfigure):
+        
+        print self._quest
+        if reconfigure:
+            print self._old
+        if self._help:
+            print self._help
+        try:
+            self._dict['value'] = ('"%s"' % shell_escape(raw_input()))
+            print "configuring: %(name)s = %(value)s" % self._dict
+        except EOFError:
+            if reconfigure:
+                self._dict['value'] = self._dict['old']
+                print "keep old value: %(name)s = %(value)s" % self._dict
+            else:
+                raise SkipException()
+        return self._dict['value']
+
+
+class UserListInput(BasicInput):
+    
+    def __init__(self, name, value, darray, help=None,
+            question="Choose var %(name)s from list:",
+            old_text="To Keep old value '%(old)s' press Ctrl+D"):
+        
+        BasicInput.__init__(self, name, value, question, old_text,
+            help=help)
+        self._darray = darray
+    
+    def _real_ask(self, reconfigure):
+        
+        for (i,v) in enumerate(self._darray):
+            print "%d %s" % (i, v)
+        print self._quest
+        if reconfigure:
+            print self._old
+        if self._help:
+            print self._help
+        try:
+            number = raw_input()
+            self._dict['value'] = self._darray[int(number)]
+        except (IndexError, ValueError):
+            print "invalid choice"
+            return self._real_ask(reconfigure)
+        except EOFError:
+            if reconfigure:
+                self._dict['value'] = self._dict['old']
+                print "keep old value: %(name)s = %(value)s" % self._dict
+            else:
+                raise SkipException()
+        return self._dict['value']
 
 
 class UserConfig(object):
@@ -67,45 +148,20 @@ class UserConfig(object):
         self._ccfg = cache
         self._reconfig = reconfigure
 
-    def input(self, name):
+    def in_expr(self, name):
         
-        old = self._mod.get_cfg(name)
-        
-        if old is None:
-            print "value for %s is: " % name
-            value = shell_escape(raw_input())
-            self._mod.add_cfg(name, value)
-        elif self._reconfig:
-            try:
-                print ("value for %s was %s... enter new value or Ctrl+D to exit" %
-                    (name, str(old)))
-                value = shell_escape(raw_input())
-                self._mod.add_cfg(name, value, True)
-            except EOFError:
-                print "keep old value!"
+        obj = UserExprInput(name, self._mod.get_cfg(name)
+        return obj
     
-    def _print_list(self, name, darray):
+    def in_string(self, name):
         
-        try:
-            for (i,v) in enumerate(darray):
-                print "%d %s" % (i, v)
-            print "choose var '%s' from list:" % name
-            number = raw_input()
-            self._mod.add_cfg(name, darray[int(number)])
-        except (IndexError, ValueError):
-            return self._print_list(name, darray)
+        obj = UserTextInput(name, self._mod.get_cfg(name))
+        return obj
     
     def choose(self, name, darray):
-        
-        old = self._mod.get_cfg(name)
-        
-        if old is None:
-            self._print_list(name, darray)
-        elif self._reconfig:
-            try:
-                self._print_list(name, darray)
-            except EOFError:
-                print "keep old value"
+    
+        obj = UserListInput(name, self._mod.get_cfg(name), darray)
+        return obj
     
     def sub_write(self, modname, name, value):
         
