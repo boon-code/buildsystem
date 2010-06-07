@@ -166,12 +166,12 @@ class ModuleNode(object):
         else:
             return False
     
-    def submit_order(self, modname, name, value, overwrite):
+    def submit_order(self, modname, name, value):
         
         modname = modname.upper()
         for i in self._out:
             if modname == i.get_name():
-                i._add_order(self, name, value, overwrite)
+                i._add_order(self, name, value, True)
                 return True
         
         return False
@@ -226,13 +226,15 @@ class ModuleNode(object):
         self.check_depencies(usr_class, mods_to_exec, reconfig)
         ccfg = self._load_config()
         self._exec_orders()
-        usercfg = usr_class(self, ccfg, reconfigure=reconfigure)
+        usercfg = usr_class(self, ccfg)
         
         env = {'__builtins__' : __builtins__,
             'BS_VERSION' : bssettings.VERSION,
             'cfg' : usercfg}
         
-        execfile(self._full, env, {})
+        execfile(self._full, env, env)
+        
+        env._exec(reconfigure)
         
         self._save_config(ccfg)
         self._execuded = True
