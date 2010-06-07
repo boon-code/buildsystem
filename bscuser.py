@@ -132,8 +132,9 @@ class UserStringInput(BasicInput):
         if self._help:
             print self._help
         try:
-            value = ('"%s"' % shell_escape(raw_input()))
+            value = shell_escape('"%s"' % raw_input())
             print "configuring: %s = %s" % (self._dict['name'], value)
+            return value
         except EOFError:
             if reconfigure:
                 print "keep old value: %(name)s = %(old)s" % self._dict
@@ -262,7 +263,7 @@ class SimpleTextConfig(object):
     
     def _eval(self, reconfigure=False):
         
-        obj_reverse = copy.deepcopy(self._objs)
+        obj_reverse = copy.copy(self._objs)
         obj_reverse.reverse()
         for i in obj_reverse:
             i._eval(self._mod, reconfigure)

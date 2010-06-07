@@ -159,6 +159,7 @@ class ModuleNode(object):
     def add_cfg(self, name, value, overwrite=False):
         
         cfg_name = "%s_%s" % (self._uname, name)
+        print "add cfg %s = %s" % (name, value)
         
         if (not (cfg_name in self._usr_config)) or overwrite:
             self._usr_config[cfg_name] = value
