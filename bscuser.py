@@ -18,6 +18,48 @@ class MissingEntryError(UserConfigException):
     pass
 
 
+class SkipException(UserConfigException):
+    pass
+
+
+class UserExprInput(object):
+    
+    def __init__(self, name, value, help=None,
+            question="Enter Expression for %(name)s",
+            old_text="To Keep old value '%(old)s' press Ctrl+D"):
+        
+        self._dict = {'name' : name, 'old' : value, 'value' : None}
+        self._quest = question % self._dict
+        self._old = old_text % self._dict
+        if not (help is None):
+            self._help = help % self._dict
+        else:
+            self._help = None
+    
+    def _real_ask(self, reconfigure):
+        
+        print self._quest
+        
+        if reconfigure:
+            print self._old
+        
+        if self._help:
+            print self._help
+        
+        try:
+            self._dict['value'] = shell_escape(raw_input())
+            print "configuring: %(name)s = %(value)s" % self._dict
+        except EOFError:
+            if reconfigure:
+                self._dict['value'] = self._dict['old']
+                print "keep old value: %(name)s = %(value)s" % self._dict
+            else:
+                raise SkipException()
+    
+    def _ask(self, reconfigure=False):
+        
+
+
 class UserConfig(object):
     
     def __init__(self, module, cache, reconfigure=False):
