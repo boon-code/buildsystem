@@ -164,7 +164,7 @@ class ConfigManager(object):
             
             # still need the reconfigure thing..
             
-            curr_mod.eval_config(bscuser.UserConfig, mods, reconfig)
+            curr_mod.eval_config(bscuser.SimpleTextConfig, mods, reconfig)
     
     def show_modules(self):
         

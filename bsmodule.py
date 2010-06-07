@@ -232,9 +232,9 @@ class ModuleNode(object):
             'BS_VERSION' : bssettings.VERSION,
             'cfg' : usercfg}
         
-        execfile(self._full, env, env)
+        execfile(self._full, env, {})
         
-        env._exec(reconfigure)
+        env['cfg']._eval(reconfigure)
         
         self._save_config(ccfg)
         self._execuded = True

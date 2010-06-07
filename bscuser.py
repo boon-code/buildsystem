@@ -1,5 +1,6 @@
 import sys
 import os
+import copy
 import cPickle
 import bssettings
 
@@ -42,7 +43,7 @@ class BasicInput(object):
         self._quest = messages['question'] % self._dict
         self._old = messages['old'] % self._dict
         self._asked = False
-        if messages.has_key['help']:
+        if 'help' in messages:
             self._help = messages['help'] % self._dict
         else:
             self._help = None
@@ -59,8 +60,6 @@ class BasicInput(object):
             value = self._dict['value']
         else:
             value = self._dict['old']
-            
-            self._exec_deps(reconfigure)
             
             if (value is None) or reconfigure:
                 value = self._real_ask(reconfigure)
@@ -263,5 +262,7 @@ class SimpleTextConfig(object):
     
     def _eval(self, reconfigure=False):
         
-        for i in self._objs.reverse():
+        obj_reverse = copy.deepcopy(self._objs)
+        obj_reverse.reverse()
+        for i in obj_reverse:
             i._eval(self._mod, reconfigure)
