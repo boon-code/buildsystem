@@ -4,7 +4,7 @@ INPUT = 'inp'
 OUTPUT = 'out'
 
 
-def load_cfg(file_path, load_all=False):
+def load_cfg(file_path):
     
     f = open(file_path, 'r')
     try:
@@ -15,11 +15,11 @@ def load_cfg(file_path, load_all=False):
         f.close()
 
 
-def save_cfg(file_path, in_vars, out_vars):
+def save_cfg(file_path, out_vars):
     
     f = open(file_path, 'w')
     try:
         pick = cPickle.Pickler(f)
-        pick.dump({INPUT : in_vars, OUTPUT : out_vars})
+        pick.dump(out_vars)
     finally:
         f.close()

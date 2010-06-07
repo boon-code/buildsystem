@@ -2,7 +2,7 @@ import sys
 import os
 import copy
 import logging
-import cPickle
+import bsfile
 import bssettings
 
 LOGGER_NAME = 'module'
@@ -204,12 +204,7 @@ class ModuleNode(object):
         ccfg = {}
         
         if os.path.exists(usr_file):
-            f = open(usr_file, 'r')
-            try:
-                pick = cPickle.Unpickler(f)
-                self._usr_config = pick.load()
-            finally:
-                f.close()
+            self._usr_config = bsfile.load_cfg(usr_file)
         
         for i in self._in:
             cfg = i.get_usr_cfg()
@@ -222,18 +217,8 @@ class ModuleNode(object):
         usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
         cache_file = os.path.join(self._path, bssettings.CFG_CACHEFILE)
         
-        f = open(usr_file, 'w')
-        try:
-            <
-        finally:
-            f.close()
-        
-        f = open(cache_file, 'w')
-        try:
-            pick = cPickle.Pickler(f)
-            pick.dump(cache)
-        finally:
-            f.close()
+        bsfile.save_cfg(usr_file, self._usr_config)
+        bsfile.save_cfg(cache_file, cache)
     
     def eval_config(self, usr_class, mods_to_exec, reconfig):
         

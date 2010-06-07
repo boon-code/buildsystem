@@ -2,7 +2,7 @@ import sys
 import os
 import types
 import optparse
-import cPickle
+import bsfile
 import bssettings
 
 class CollectException(Exception):
@@ -24,20 +24,8 @@ def collect_defines(directory):
         # error msg please
         return config
     else:
-        f = open(cache_file, 'r')
-        try:
-            pick = cPickle.Unpickler(f)
-            config = pick.load()
-        finally:
-            f.close()
-        
-        f = open(usr_file, 'r')
-        try:
-            pick = cPickle.Unpickler(f)
-            ucfg = pick.load()
-        finally:
-            f.close()
-        
+        config = bsfile.load_cfg(cache_file)
+        ucfg = bsfile.load_cfg(usr_file)
         config.update(ucfg)
         
         return config
