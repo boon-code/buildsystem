@@ -176,7 +176,7 @@ class UserListInput(BasicInput):
         try:
             number = raw_input()
             return self._darray[int(number)]
-        except (IndexError, ValueError):
+        except (IndexError, ValueError, KeyError):
             print "invalid choice"
             return self._real_ask(reconfigure)
         except EOFError:
