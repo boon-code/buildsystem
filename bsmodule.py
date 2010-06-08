@@ -163,6 +163,8 @@ class ModuleNode(object):
         
         if (not (cfg_name in self._usr_config)) or overwrite:
             self._usr_config[cfg_name] = value
+            # that's often...
+            self._save_usr_config()
             return True
         else:
             return False
@@ -215,11 +217,13 @@ class ModuleNode(object):
     
     def _save_config(self, cache):
         
-        usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
         cache_file = os.path.join(self._path, bssettings.CFG_CACHEFILE)
-        
-        bsfile.save_cfg(usr_file, self._usr_config)
+        self._save_usr_config()
         bsfile.save_cfg(cache_file, cache)
+    
+    def _save_usr_config(self):
+        usr_file = os.path.join(self._path, bssettings.CFG_USERFILE)
+        bsfile.save_cfg(usr_file, self._usr_config)
     
     def eval_config(self, usr_class, mods_to_exec, reconfig):
         
@@ -233,9 +237,11 @@ class ModuleNode(object):
             'BS_VERSION' : bssettings.VERSION,
             'cfg' : usercfg}
         
-        execfile(self._full, env, {})
+        execfile(self._full, env, env)
         
-        env['cfg']._eval(reconfigure)
+        exec("cfg._eval(%s)" % str(reconfigure), env, env)
+        
+        #env['cfg']._eval(reconfigure)
         
         self._save_config(ccfg)
         self._execuded = True

@@ -2,6 +2,7 @@ import sys
 import os
 import copy
 import cPickle
+import Queue
 import bssettings
 
 def shell_escape(value):
@@ -37,14 +38,14 @@ class WasNotAskedError(UserConfigException):
 
 class BasicInput(object):
     
-    def __init__(self, name, value, messages):
+    def __init__(self, name, value, options):
         
         self._dict = {'name' : name, 'old' : value, 'value' : None}
-        self._quest = messages['question'] % self._dict
-        self._old = messages['old'] % self._dict
+        self._quest = options['question'] % self._dict
+        self._old = options['old'] % self._dict
         self._asked = False
-        if 'help' in messages:
-            self._help = messages['help'] % self._dict
+        if 'help' in options:
+            self._help = options['help'] % self._dict
         else:
             self._help = None
     
@@ -63,6 +64,9 @@ class BasicInput(object):
             
             if (value is None) or reconfigure:
                 value = self._real_ask(reconfigure)
+                # let's think about this...
+                #if isinstance(value, BasicInput):
+                #    value = value._ask()
             else:
                 value = self._dict['old']
             
@@ -85,14 +89,14 @@ class BasicInput(object):
 
 class UserExprInput(BasicInput):
     
-    def __init__(self, name, value, messages):
+    def __init__(self, name, value, options):
         
-        if not ('question' in messages):
-            messages['question'] = "Enter Expression for %(name)s"
-        if not ('old' in messages):
-            messages['old'] = "To Keep old value '%(old)s' press Ctrl+D"
+        if not ('question' in options):
+            options['question'] = "Enter Expression for %(name)s"
+        if not ('old' in options):
+            options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
         
-        BasicInput.__init__(self, name, value, messages)
+        BasicInput.__init__(self, name, value, options)
     
     def _real_ask(self, reconfigure):
         
@@ -115,14 +119,14 @@ class UserExprInput(BasicInput):
 
 class UserStringInput(BasicInput):
     
-    def __init__(self, name, value, messages):
+    def __init__(self, name, value, options):
         
-        if not ('question' in messages):
-            messages['question'] = "Enter String for %(name)s"
-        if not ('old' in messages):
-            messages['old'] = "To Keep old value '%(old)s' press Ctrl+D"
+        if not ('question' in options):
+            options['question'] = "Enter String for %(name)s"
+        if not ('old' in options):
+            options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
         
-        BasicInput.__init__(self, name, value, messages)
+        BasicInput.__init__(self, name, value, options)
     
     def _real_ask(self, reconfigure):
         
@@ -145,14 +149,19 @@ class UserStringInput(BasicInput):
 
 class UserListInput(BasicInput):
     
-    def __init__(self, name, value, darray, messages):
+    def __init__(self, name, value, darray, options):
         
-        if not ('question' in messages):
-            messages['question'] = "Choose var %(name)s from list:"
-        if not ('old' in messages):
-            messages['old'] = "To Keep old value '%(old)s' press Ctrl+D"
+        if not ('question' in options):
+            options['question'] = "Choose var %(name)s from list:"
+        if not ('old' in options):
+            options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
         
-        BasicInput.__init__(self, name, value, messages)
+        self._remove = False
+        if 'remove' in options:
+            if options['remove']:
+                self._remove = True
+        
+        BasicInput.__init__(self, name, value, options)
         self._darray = darray
     
     def _real_ask(self, reconfigure):
@@ -176,13 +185,23 @@ class UserListInput(BasicInput):
                 return self._dict['old']
             else:
                 raise SkipException()
+    
+    def _ask(self, reconfigure):
+        
+        ret = BasicInput._ask(self, reconfigure)
+        
+        if self._remove:
+            if ret in self._darray:
+                self._darray.remove(ret)
+        return ret
 
 
 class SimpleCallTarget(BasicInput):
     
-    def __init__(self, name, value, deps, function):
+    def __init__(self, name, value, deps, function, options):
         
-        BasicInput.__init__(self, name, value, {})
+        messages = {'question' : '', 'old' : ''}
+        BasicInput.__init__(self, name, value, messages)
         self._func = function
         for i in deps:
             i._check_depency(self)
@@ -208,10 +227,13 @@ class SimpleCallTarget(BasicInput):
         for i in self._deps:
             i._ask(reconfigure)
     
-    def _ask(self, reconfigure=False):
+    def _eval(self, module, reconfigure):
         
         self._exec_deps(reconfigure)
-        return BasicInput._ask(self, True)
+        if self._dict['name'] is None:
+            return self._real_ask(reconfigure)
+        else:
+            BasicInput._eval(self, module, True)
 
 
 class SimpleTextConfig(object):
@@ -219,35 +241,34 @@ class SimpleTextConfig(object):
     def __init__(self, module, cache):
         self._mod = module
         self._ccfg = cache
-        self._objs = []
+        self._objs = Queue.Queue()
+    
+    def _input(self, name, options, class_type):
+        
+        value = self._mod.get_cfg(name)
+        obj = class_type(name, value, options)
+        self._objs.put(obj)
+        return obj
 
-    def expr(self, name, **messages):
+    def expr(self, name, **options):
+        return self._input(name, options, UserExprInput)
+    
+    def string(self, name, **options):
+        return self._input(name, options, UserStringInput)
+    
+    def choose(self, name, darray, **options):
         
         value = self._mod.get_cfg(name)
-        obj = UserExprInput(name, value, messages)
-        self._objs.append(obj)
+        obj = UserListInput(name, value, darray, options)
+        self._objs.put(obj)
         return obj
     
-    def string(self, name, **messages):
-        
-        value = self._mod.get_cfg(name)
-        obj = UserStringInput(name, value, messages)
-        self._objs.append(obj)
-        return obj
-    
-    def choose(self, name, darray, **messages):
-        
-        value = self._mod.get_cfg(name)
-        obj = UserListInput(name, value, darray, messages)
-        self._objs.append(obj)
-        return obj
-    
-    def bind(self, name, function, *depencies):
+    def bind(self, name, function, *depencies, **options):
         "bind function + depencies to target 'name'"
         
         value = self._mod.get_cfg(name)
-        obj = SimpleCallTarget(name, value, depencies, function)
-        self._objs.append(obj)
+        obj = SimpleCallTarget(name, value, depencies, function, options)
+        self._objs.put(obj)
         return obj
     
     def sub_write(self, modname, name, value):
@@ -263,7 +284,13 @@ class SimpleTextConfig(object):
     
     def _eval(self, reconfigure=False):
         
-        obj_reverse = copy.copy(self._objs)
-        obj_reverse.reverse()
-        for i in obj_reverse:
-            i._eval(self._mod, reconfigure)
+        try:
+            while True:
+                obj = self._objs.get(block=False)
+                try:
+                    obj._eval(self._mod, reconfigure)
+                except SkipException:
+                    print 'skip'
+                    self._objs.put(obj)
+        except Queue.Empty:
+            pass
