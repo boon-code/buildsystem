@@ -24,6 +24,10 @@ class SkipException(UserConfigException):
     pass
 
 
+class ValueCheckException(UserConfigException):
+    pass
+
+
 class UnimplementedException(UserConfigException):
     pass
 
@@ -97,6 +101,8 @@ class UserExprInput(BasicInput):
             options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
         
         BasicInput.__init__(self, name, value, options)
+        
+        self._opts = options
     
     def _real_ask(self, reconfigure):
         
@@ -107,6 +113,14 @@ class UserExprInput(BasicInput):
             print self._help
         try:
             value = shell_escape(raw_input())
+            if "check" in self._opts:
+                try:
+                    result = self._opts.check(value)
+                    if not result:
+                        raise ValueCheckException()
+                except TypeError:
+                    print "something wrong with check funtion..."
+                    print "ignoring..."
             print "configuring: %s = %s" % (self._dict['name'], value)
             return value
         except EOFError:
@@ -291,6 +305,9 @@ class SimpleTextConfig(object):
                     obj._eval(self._mod, reconfigure)
                 except SkipException:
                     print 'skip'
+                    self._objs.put(obj)
+                except ValueCheckException:
+                    print 'value error'
                     self._objs.put(obj)
         except Queue.Empty:
             pass
