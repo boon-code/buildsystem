@@ -142,9 +142,13 @@ def main(args):
         
         config = bsdef.collect_defines(os.path.split(i)[0])
                 
-        env = {'__builtins__' : __builtins__,
+        nenv = {'__builtins__' : __builtins__,
             'BS_VERSION' : bssettings.VERSION,
             'math' : math, 'cfg' : config}
+        
+        env = {}
+        env.update(config)
+        env.update(nenv)
         
         if options.output:
             dst = open(options.output, 'w')
