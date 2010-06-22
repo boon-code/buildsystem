@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 import copy
 import cPickle
 import Queue
@@ -52,6 +53,8 @@ class BasicInput(object):
             self._help = options['help'] % self._dict
         else:
             self._help = None
+        
+        self.__opts = options
     
     def _real_ask(self, reconfigure):
         raise UnimplementedException()
@@ -68,6 +71,7 @@ class BasicInput(object):
             
             if (value is None) or reconfigure:
                 value = self._real_ask(reconfigure)
+                
                 # let's think about this...
                 #if isinstance(value, BasicInput):
                 #    value = value._ask()
@@ -76,6 +80,16 @@ class BasicInput(object):
             
             self._dict['value'] = value
             self._asked = True
+        
+        if "check" in self.__opts:
+            try:
+                result = self.__opts['check'](value)
+                if not result:
+                    raise ValueCheckException()
+            except TypeError:
+                print "something wrong with check funtion..."
+                print "ignoring..."
+        
         return value
     
     def _eval(self, module, reconfigure):
@@ -101,8 +115,43 @@ class UserExprInput(BasicInput):
             options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
         
         BasicInput.__init__(self, name, value, options)
+    
+    def _real_ask(self, reconfigure):
         
-        self._opts = options
+        print self._quest
+        if reconfigure:
+            print self._old
+        if self._help:
+            print self._help
+        try:
+            value = raw_input()
+            try:
+                value = eval(value, {'__builtins__' : __builtins__,
+                    'math' : math})
+            except Exception:
+                print "couldn't use as expression"
+                value = shell_escape(value)
+            
+            print "configuring: %s = %s" % (self._dict['name'], value)
+            return value
+        except EOFError:
+            if reconfigure:
+                print "keep old value: %(name)s = %(old)s" % self._dict
+                return self._dict['old']
+            else:
+                raise SkipException()
+
+
+class UserDefInput(BasicInput):
+    
+    def __init__(self, name, value, options):
+        
+        if not ('question' in options):
+            options['question'] = "Enter Expression for %(name)s"
+        if not ('old' in options):
+            options['old'] = "To Keep old value '%(old)s' press Ctrl+D"
+        
+        BasicInput.__init__(self, name, value, options)
     
     def _real_ask(self, reconfigure):
         
@@ -113,14 +162,7 @@ class UserExprInput(BasicInput):
             print self._help
         try:
             value = shell_escape(raw_input())
-            if "check" in self._opts:
-                try:
-                    result = self._opts['check'](value)
-                    if not result:
-                        raise ValueCheckException()
-                except TypeError:
-                    print "something wrong with check funtion..."
-                    print "ignoring..."
+            
             print "configuring: %s = %s" % (self._dict['name'], value)
             return value
         except EOFError:
@@ -266,6 +308,9 @@ class SimpleTextConfig(object):
 
     def expr(self, name, **options):
         return self._input(name, options, UserExprInput)
+    
+    def define(self, name, **options):
+        return self._input(name, options, UserDefInput)
     
     def string(self, name, **options):
         return self._input(name, options, UserStringInput)
