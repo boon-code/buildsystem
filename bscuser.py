@@ -115,7 +115,7 @@ class UserExprInput(BasicInput):
             value = shell_escape(raw_input())
             if "check" in self._opts:
                 try:
-                    result = self._opts.check(value)
+                    result = self._opts['check'](value)
                     if not result:
                         raise ValueCheckException()
                 except TypeError:
