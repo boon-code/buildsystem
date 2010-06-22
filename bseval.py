@@ -2,6 +2,7 @@ import sys
 import os
 import optparse
 import bssettings
+import traceback
 import bsdef
 import math
 
