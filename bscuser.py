@@ -219,7 +219,7 @@ class SimpleCallTarget(BasicInput):
         self._func = function
         for i in deps:
             i._check_depency(self)
-        self._deps = frozenset(deps)
+        self._deps = deps
     
     def _real_ask(self, reconfigure):
         
@@ -234,7 +234,7 @@ class SimpleCallTarget(BasicInput):
         
         for i in deps:
             i._check_depency(self)
-        self._deps = self._deps.union(deps)
+            self._deps.append(i)
     
     def _exec_deps(self, reconfigure):
         
